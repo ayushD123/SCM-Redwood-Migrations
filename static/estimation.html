@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>SCM - Redwood Estimation Calculator</title>
+
+<style>
+
+body{
+margin:0;
+font-family:"Segoe UI",Arial;
+color:white;
+
+/* Background image */
+background-image: url("static/images/background.png"); 
+background-size: cover;
+background-position: center;
+background-repeat: no-repeat;
+background-attachment: fixed;
+}
+
+.header{
+background-image:url("static/images/header-bg.png");
+background-size:cover;
+background-position:center;
+background-repeat:no-repeat;
+
+padding:30px;
+text-align:center;
+
+font-size:34px;
+font-weight:700;
+letter-spacing:1px;
+
+color:white;
+font-family:"Segoe UI","Poppins","Arial";
+text-shadow:0 3px 10px rgba(0,0,0,0.7);
+}
+
+.top-banner {
+    margin-top:0.75rem;
+    width:100%;
+}
+
+.top-banner img {
+    width:100%;
+    height:auto;
+    display:block;
+}
+
+.container{
+max-width:1150px;
+margin:40px auto;
+background:#000000;
+padding:35px;
+border-radius:12px;
+}
+
+label{display:block;margin-top:12px;font-weight:600;}
+.checkbox-label{
+display:inline-flex;
+align-items:center;
+gap:10px;
+margin-top:12px;
+font-weight:600;
+cursor:pointer;
+white-space:nowrap;
+}
+input[type="checkbox"]{
+transform:scale(1.2);
+cursor:pointer;
+}
+
+input{
+width:100%;
+padding:8px;
+margin-top:5px;
+border-radius:6px;
+border:1px solid #2a3441;
+background:#1b2430;
+color:white;
+}
+
+button{
+margin-top:12px;
+padding:10px 18px;
+
+background:linear-gradient(135deg,#c40000,#ff2a2a);
+
+color:white;
+border:none;
+border-radius:8px;
+
+cursor:pointer;
+font-weight:500;
+transition:all 0.25s ease;
+}
+
+button:hover{
+transform:translateY(-2px);
+box-shadow:0 8px 18px rgba(255,0,0,0.35);
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
+}
+
+th,td{
+border:1px solid #2a3441;
+padding:8px;
+text-align:center;
+}
+
+.product-total{
+background:#1a222d;
+font-weight:bold;
+}
+
+.grand-total{
+background:#141b25;
+font-weight:bold;
+}
+
+/* SHEET STYLING */
+
+.sheet-header{
+background:#d96a1b;
+color:white;
+font-weight:bold;
+}
+
+.section-header{
+background:#365a7d;
+color:white;
+font-weight:bold;
+}
+
+.sheet-row{
+background:#ffffff;
+color:black;
+}
+
+.csus{
+background:#d96a1b;
+color:white;
+font-weight:bold;
+}
+
+.total-row{
+background:#7aa66b;
+color:white;
+font-weight:bold;
+}
+
+.section-divider{
+margin-top:35px;
+border-top:1px dashed #444;
+padding-top:20px;
+}
+
+.copy-btn{
+background:#2e7d32;
+padding:6px 12px;
+border:none;
+border-radius:6px;
+color:white;
+cursor:pointer;
+font-size:14px;
+}
+
+.copy-btn:hover{
+background:#43a047;
+}
+
+.sheet-title{
+display:flex;
+align-items:center;
+gap:15px;
+margin-bottom:10px;
+}
+
+/* SUMMARY EXCEL STYLE */
+
+#summaryTable th{
+background:#d96a1b;
+color:white;
+font-weight:bold;
+}
+
+#summaryTable td{
+background:#d9d9d9;
+color:black;
+}
+
+#summaryTable tr.product-total td{
+background:#d96a1b;
+color:white;
+font-weight:bold;
+}
+
+#summaryTable tr.grand-total td{
+background:#7aa66b;
+color:white;
+font-weight:bold;
+}
+.header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .back-link {
+        color: rgba(255,255,255,0.75);
+        text-decoration: none;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: color 0.2s;
+    }
+    .back-link:hover 
+    { 
+      color: white; 
+    }
+
+
+</style>
+
+</head>
+
+<body>
+<div class="header">
+    <div class="header-left">
+      <a class="back-link" href="dashboard">← Home</a>
+      <h3 style="margin:0; font-weight:500;">SCM Redwood Estimation Tool</h3>
+    </div>
+  </div>
+
+<div class="top-banner">
+    <img src="/static/images/top-banner.png" alt="SCM Redwood Automation Tool">
+</div>
+
+<div class="container">
+
+<h3>Add Product</h3>
+
+<label>Product Name</label>
+<input id="productName">
+
+<label>Total Features</label>
+<input type="number" id="totalFeatures">
+
+<label>Total Personalization</label>
+<input type="number" id="totalPersonalization">
+
+<label>Complexity</label>
+<input type="number" step="0.1" value="1" id="complexity">
+
+<label class="checkbox-label">
+<input type="checkbox" id="discussionCheck">
+Include Discussion & Documentation
+</label>
+
+<h4>Module Breakdown</h4>
+
+<input id="moduleName" placeholder="Module Name">
+<input type="number" id="moduleFeatures" placeholder="Module Features">
+<input type="number" id="modulePersonalization" placeholder="Module Personalization">
+
+<button onclick="addModule()">Add Module</button>
+
+<table id="moduleTable">
+<tr>
+<th>Module</th>
+<th>Features</th>
+<th>Personalization</th>
+<th>Action</th>
+</tr>
+</table>
+
+<button onclick="addProduct()">Add Product</button>
+<button onclick="generateSummary()">Generate Summary</button>
+<button onclick="generatePresentedSheets()">Generate Presented Sheets</button>
+
+<div class="sheet-title">
+<h3>Summary</h3>
+<button class="copy-btn" onclick="copySummary()">Copy Summary</button>
+</div>
+
+<table id="summaryTable"></table>
+
+<div id="presentedSheetsSection"></div>
+
+</div>
+
+<script>
+async function updatePhaseInSheet(customerName, username, phase) {
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyKS57F-eFM0ysSVMIloUjkJ6f6ryXPIGhi9xF1ogVUZ7o-YdHSSJ7QBhgqaTKBc3rMaA/exec";
+
+  // console.log("script");
+
+  await fetch(WEB_APP_URL, {
+    method: "POST",
+    mode: "no-cors",
+    body: new URLSearchParams({
+      customerName,
+      username,
+      phase
+    }),
+  });
+
+  // console.log("request sent");
+}
+
+async function getSessionInfo() {
+  const response = await fetch("/api/session-info", {
+    method: "GET",
+    credentials: "include"
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch session info");
+  }
+
+  const data = await response.json();
+  return data; 
+}
+function safeFileName(name) {
+  return String(name).replace(/[\/\\:*?"<>|]+/g, "_").trim();
+}
+
+/* Resolve customer name for download naming (session API -> sessionStorage -> default) */
+let cachedCustomerNameForFiles = "";
+async function resolveCustomerNameForFiles() {
+  if (cachedCustomerNameForFiles) return cachedCustomerNameForFiles;
+
+  try {
+    const session = await getSessionInfo();
+    const fromSessionApi = (session?.customer || "").trim();
+    if (fromSessionApi) {
+      cachedCustomerNameForFiles = fromSessionApi;
+      sessionStorage.setItem("customerName", fromSessionApi);
+      return fromSessionApi;
+    }
+  } catch (e) {
+    // fallback below
+  }
+
+  const fromStorage = (sessionStorage.getItem("customerName") || "").trim();
+  cachedCustomerNameForFiles = fromStorage || "Customer";
+  return cachedCustomerNameForFiles;
+}
+
+function makeProductKey(productName) {
+  return safeFileName(productName).replace(/\s+/g, "_");
+}
+
+function round(v) { return Math.round(v); }
+
+let modules = [];
+let products = [];
+
+function addModule() {
+  let name = document.getElementById("moduleName").value;
+  let f = parseFloat(moduleFeatures.value) || 0;
+  let p = parseFloat(modulePersonalization.value) || 0;
+  if (!name) return;
+  modules.push({ name, f, p });
+  renderModules();
+}
+
+function removeModule(i) {
+  modules.splice(i, 1);
+  renderModules();
+}
+
+function renderModules() {
+  let table = document.getElementById("moduleTable");
+  table.innerHTML = `
+    <tr>
+      <th>Module</th>
+      <th>Features</th>
+      <th>Personalization</th>
+      <th>Action</th>
+    </tr>`;
+  modules.forEach((m, i) => {
+    table.innerHTML += `
+      <tr>
+        <td>${m.name}</td>
+        <td>${m.f}</td>
+        <td>${m.p}</td>
+        <td><button onclick="removeModule(${i})">Remove</button></td>
+      </tr>`;
+  });
+}
+
+function calculateCSU(f, p, includeDiscussion) {
+  let discussion = includeDiscussion ? 12 : 0;
+  let G11 = round(round(f * 0.1) / 2);
+  let G12 = round(round(f * 0.2) / 2);
+  let G13 = 8;
+  let G19 = 12;
+  let D9 = 4;
+  let D13 = G11 + G12 + G13 + G19;
+  let D14_15 = p ? 18 + p : 12;
+  let D17 = 16;
+  let D22 = round(round(f * 0.5) / 2);
+  let D25 = 0;
+  return {
+    discussion,
+    D9,
+    D13,
+    D14_15,
+    D17,
+    D22,
+    D25,
+    csu: discussion + D9 + D13 + D14_15 + D17 + D22
+  };
+}
+
+function addProduct() {
+  let product = productName.value.trim();
+  let f = parseFloat(totalFeatures.value) || 0;
+  let p = parseFloat(totalPersonalization.value) || 0;
+  let complexity = parseFloat(document.getElementById("complexity").value) || 1;
+  let includeDiscussion = document.getElementById("discussionCheck").checked;
+  if (!product || modules.length === 0) return;
+
+  let result = calculateCSU(f, p, includeDiscussion);
+  let actual = round(result.csu * complexity);
+
+  products.push({
+    product,
+    productKey: makeProductKey(product),
+    modules: [...modules],
+    totalFeatures: f,
+    totalPersonalization: p,
+    complexity,
+    csu: result.csu,
+    actual,
+    includeDiscussion
+  });
+
+  modules = [];
+  renderModules();
+}
+
+function generateSummary() {
+  let table = document.getElementById("summaryTable");
+  table.innerHTML = `
+    <tr>
+      <th>Product</th>
+      <th>Module</th>
+      <th>Features</th>
+      <th>Personalization</th>
+      <th>CSU</th>
+    </tr>`;
+
+  let grandF = 0, grandP = 0, grandCSU = 0, grandActual = 0;
+  let complexitySum = 0;
+
+  products.forEach(data => {
+    grandF += data.totalFeatures;
+    grandP += data.totalPersonalization;
+    grandCSU += data.csu;
+    grandActual += data.actual;
+    complexitySum += data.complexity;
+
+    let moduleCount = data.modules.length;
+
+    data.modules.forEach((m, index) => {
+      let row = '<tr class="sheet-row">';
+      row += `<td>${data.product}</td>`;
+      row += `<td>${m.name}</td>`;
+      row += `<td>${m.f}</td>`;
+      row += `<td>${m.p}</td>`;
+      if (index === 0) row += `<td rowspan="${moduleCount}">${data.actual}</td>`;
+      row += "</tr>";
+      table.innerHTML += row;
+    });
+
+    table.innerHTML += `
+      <tr class="product-total">
+        <td colspan="2">Total - ${data.product}</td>
+        <td>${data.totalFeatures}</td>
+        <td>${data.totalPersonalization}</td>
+        <td>${data.actual}</td>
+      </tr>`;
+  });
+
+  let avgComplexity = products.length > 0 ? (complexitySum / products.length).toFixed(2) : 0;
+
+  table.innerHTML += `
+    <tr class="grand-total">
+      <td colspan="2">Grand Total</td>
+      <td>${grandF}</td>
+      <td>${grandP}</td>
+      <td>${grandActual}</td>
+    </tr>`;
+}
+
+function copySheet(id) {
+  const range = document.createRange();
+  range.selectNode(document.getElementById(id));
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(range);
+  document.execCommand("copy");
+  window.getSelection().removeAllRanges();
+  alert("Sheet copied!");
+}
+
+function copySummary() {
+  const range = document.createRange();
+  range.selectNode(document.getElementById("summaryTable"));
+  window.getSelection().removeAllRanges();
+  window.getSelection().addRange(range);
+  document.execCommand("copy");
+  window.getSelection().removeAllRanges();
+  alert("Summary copied!");
+}
+//downloading the indivial product excel sheet
+async function downloadSheet(tableId) {
+  const element = document.getElementById(tableId);
+  if (!element) {
+    alert("Sheet not found!");
+    return;
+  }
+
+  const productKey = tableId.startsWith("sheet_") ? tableId.slice("sheet_".length) : tableId;
+  const found = products.find(p => p.productKey === productKey);
+  const productName = found ? found.product : productKey;
+
+  const customer = await resolveCustomerNameForFiles();
+  const workbook = XLSX.utils.table_to_book(element, { sheet: "Sheet1" });
+  const fileName = safeFileName(`${customer}_${productName}`) + ".xlsx";
+  XLSX.writeFile(workbook, fileName);
+}
+// downloading all the files and storing in single zip file
+async function downloadAllAsZip() {
+  if (!products.length) {
+    alert("No products found to download.");
+    return;
+  }
+
+  const customer = await resolveCustomerNameForFiles();
+  const zip = new JSZip();
+
+  for (const data of products) {
+    const tableId = "sheet_" + data.productKey;
+    const element = document.getElementById(tableId);
+    if (!element) continue;
+
+    const worksheet = XLSX.utils.table_to_sheet(element);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+
+    const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const excelName = safeFileName(`${customer}_${data.product}`) + ".xlsx";
+    zip.file(excelName, excelBuffer);
+  }
+
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  const zipName = safeFileName(`${customer}_All_Products`) + ".zip";
+  if (typeof saveAs === "function") {
+    saveAs(zipBlob, zipName);
+  } else {
+    // Fallback if FileSaver is unavailable
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = zipName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+}
+
+function generatePresentedSheets() {
+  let container = document.getElementById("presentedSheetsSection");
+  container.innerHTML = "";
+  container.innerHTML += `
+    <div style="margin: 10px 0;">
+      <button class="copy-btn" onclick="downloadAllAsZip()">
+        Download All (ZIP)
+      </button>
+    </div>
+  `;
+
+  products.forEach(data => {
+    let f = data.totalFeatures;
+    let p = data.totalPersonalization;
+    let complexity = data.complexity;
+    let result = calculateCSU(f, p, data.includeDiscussion);
+
+    let discussion = data.includeDiscussion ? 4 : 0;
+    let documentation = data.includeDiscussion ? 8 : 0;
+    let personalizationCount = p ? p + 2 : 2;
+
+    const tableId = `sheet_${data.productKey}`;
+
+    container.innerHTML += `
+      <div class="section-divider">
+        <div class="sheet-title">
+          <h3>Presented Sheet – ${data.product}</h3>
+          <button class="copy-btn" onclick="copySheet('${tableId}')">Copy Sheet</button>
+          <button class="copy-btn" onclick="downloadSheet('${tableId}')">Download Sheet</button>
+        </div>
+
+        <table id="${tableId}">
+          <tr class="sheet-header">
+            <th>Activity</th>
+            <th>Detailed Activity</th>
+            <th>Feature & Pers. Count</th>
+            <th>CSUs</th>
+          </tr>
+
+          <tr class="section-header"><td colspan="4">Service Kick-off</td></tr>
+
+          <tr class="sheet-row">
+            <td>Validate the filled-in Redwood Pre-Adoption File and the Helper Tool output Extract</td>
+            <td>Providing Details Features list and running the helper Tool</td>
+            <td></td>
+            <td class="csus">NA</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Perform Impact Assessment for Redwood and Customer's Personalization</td>
+            <td>Validating the data like helpertool Output and Features List</td>
+            <td></td>
+            <td class="csus">NA</td>
+          </tr>
+
+          <tr class="section-header"><td colspan="4">Assessment Activities</td></tr>
+
+          <tr class="sheet-row">
+            <td>Discussion</td>
+            <td>Introduction of Redwood Features along with redwood roadmap of Supply Chain. Prepare Inventory of assets impacted , Report and the Workplan and Review Workplan with the Customer</td>
+            <td></td>
+            <td class="csus">${discussion}</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Documentation</td>
+            <td>This covers various documentation like CWB's and Adoption Document</td>
+            <td></td>
+            <td class="csus">${documentation}</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Demo/ Review</td>
+            <td>Walk Through of Applicable Feature Before and After Adoption along with few transactions in the system.</td>
+            <td></td>
+            <td class="csus">${result.D9}</td>
+          </tr>
+
+          <tr class="section-header"><td colspan="4">Adoption Activities</td></tr>
+
+          <tr class="sheet-row">
+            <td>Customer Approval for Redwood Adoption</td>
+            <td>Obtain Customer approval for adoption of redwood for SCM Side based on the timeline and commercials finalised.</td>
+            <td></td>
+            <td class="csus">0</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Enable/Assist Customer in Enabling Visual Builder and Pre-requisites,as required</td>
+            <td>Installation of required Pre-Req's on Agreed Environment like VB , Roles etc..</td>
+            <td></td>
+            <td class="csus">0</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Configure Redwood UI Pages</td>
+            <td>
+              1.Features Enablement and Verification in Non Prod Environments.Enabling Feature by Feature by setup , Profile option , Opt-in Enablement.<br>
+              2.Comparison between Classic vs Redwood UI level - This is for Both Prod and Non-Prod.
+            </td>
+            <td>${f}</td>
+            <td class="csus">${result.D13}</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Configure supported personalizations and customizations</td>
+            <td>Redo personalizations.With the shift to the Redwood architecture, many existing personalizations from the Classic version will not automatically migrate due to structural differences.</td>
+            <td>${personalizationCount}</td>
+            <td class="csus">${result.D14_15}</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Convert and rewrite autocomplete rules, scripts, and notifications</td>
+            <td></td>
+            <td></td>
+            <td class="csus">0</td>
+          </tr>
+
+          <tr class="section-header"><td colspan="4">Unit Testing Activities and UAT Assistance</td></tr>
+
+          <tr class="sheet-row">
+            <td>Perform Unit Testing with and without personalization involved.</td>
+            <td>Perform a detailed column-by-column comparison between Classic and Redwood to confirm that all data points and configurations are accurately mapped, helping ensure that no field, functionality, or dependency is missed during the transition</td>
+            <td></td>
+            <td class="csus">${result.D17}</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Assist in Test instance and UAT to resolve any Redwood issues raised during Testing</td>
+            <td>Assist in Test instance and UAT to resolve any Redwood issues raised during Testing</td>
+            <td></td>
+            <td class="csus">0</td>
+          </tr>
+
+          <tr class="section-header"><td colspan="4">Migration Activities</td></tr>
+
+          <tr class="sheet-row">
+            <td>Configure Setups and Deploy Personalization to another non-Prod environment as per customer environment selected.</td>
+            <td>Configure Setups and Deploy Personalization to another non-Prod environment as per customer environment selected.</td>
+            <td></td>
+            <td class="csus">0</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Obtain sign-off to deploy on Production</td>
+            <td>Obtain sign-off to deploy on Production</td>
+            <td></td>
+            <td class="csus">0</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Configuration of Setups and Deployment of Personalization to Prod environment</td>
+            <td>Production Migration of UI , setups and Personalizations done and signed off by customer.</td>
+            <td></td>
+            <td class="csus">${result.D22}</td>
+          </tr>
+
+          <tr class="sheet-row">
+            <td>Assist Customer in Configuration of Setups and Deployment of Personalization to Prod environment (Optional)</td>
+            <td>Migration to production environment depending on customer's discussion. In this a migration documentation will be provided and assist customer in Moving to Redwood for Production.</td>
+            <td></td>
+            <td class="csus">0</td>
+          </tr>
+
+          <tr class="section-header"><td colspan="4">Post-Go-Live Hypercare Support</td></tr>
+
+          <tr class="sheet-row">
+            <td>Post Go-live Support</td>
+            <td>Hypercare for 3 weeks to support all the requirement and issues - <span style="color:red;">This is based on BAU Catalog.</span></td>
+            <td></td>
+            <td class="csus">0</td>
+          </tr>
+
+          <tr class="total-row">
+            <td colspan="3">Grand Total</td>
+            <td>${result.csu}</td>
+          </tr>
+
+          <tr class="total-row">
+            <td colspan="2">Grand Total (CSU * Complexity)</td>
+            <td>${complexity}</td>
+            <td>${data.actual}</td>
+          </tr>
+        </table>
+      </div>
+    `;
+  });
+async function runPhase() {
+  const { user, customer } = await getSessionInfo();
+  cachedCustomerNameForFiles = (customer || "").trim();
+  if (cachedCustomerNameForFiles) {
+    sessionStorage.setItem("customerName", cachedCustomerNameForFiles);
+  }
+  updatePhaseInSheet(customer, user, "phase1");
+}
+
+runPhase();
+}
+</script>
+
+<!-- Required libraries for Excel/ZIP download features -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver/dist/FileSaver.min.js"></script>
+
+
+</body>
+</html>
+
+
+
+
+
+

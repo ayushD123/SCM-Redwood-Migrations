@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helper Tool Output</title>
+
+<style>
+    :root {
+        --primary-color: #333;
+        --secondary-color: #666;
+        --accent-color: #f0a040;
+        --light-bg: #fafafa;
+        --border-color: #ddd;
+        --success-color: #4caf50;
+        --error-color: #f44336;
+        --info-color: #2196f3;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f5f5f5;
+        color: var(--primary-color);
+        line-height: 1.6;
+        font-weight: 400;
+    }
+
+    .header {
+        background-color: var(--primary-color);
+        color: white;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .header-content {
+        padding: 1rem 2rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+    }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .back-link {
+        color: rgba(255,255,255,0.75);
+        text-decoration: none;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: color 0.2s;
+    }
+    .back-link:hover { color: white; }
+
+    .header h1 { font-size: 1.2rem; font-weight: 500; }
+
+    .btn-help-support {
+        background-color: white;
+        color: var(--primary-color);
+        border: 1px solid var(--border-color);
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 400;
+        transition: all 0.3s ease;
+    }
+    .btn-help-support:hover { background-color: #f0f0f0; }
+
+    .oracle-jet-panel {
+        height: 15px;
+        background-image: url("https://artifacthub-phx.oci.oraclecorp.com/artifactory/acs-ofs-dev-local/oracle-jet-banner.png");
+        background-repeat: repeat-x;
+        background-position: top center;
+        box-shadow: 0 2px 4px rgba(0,0,0,.1);
+    }
+
+    .container {
+        max-width: 860px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+
+    .page-header {
+        margin-bottom: 1.5rem;
+    }
+
+    .page-header h2 {
+        font-size: 1.5rem;
+        font-weight: 500;
+        margin-bottom: 0.3rem;
+    }
+
+    .page-header p {
+        font-size: 0.9rem;
+        color: var(--secondary-color);
+    }
+
+    .phase-content {
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 2rem;
+    }
+
+    .form-group { margin-bottom: 1rem; }
+
+    label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 400;
+        font-size: 0.9rem;
+    }
+
+    input[type="text"],
+    input[type="password"],
+    input[type="file"],
+    select {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        font-size: 0.9rem;
+        font-weight: 400;
+    }
+
+    input[type="file"] { padding: 0.5rem; }
+
+    .btn {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 400;
+        transition: background-color 0.3s ease;
+    }
+    .btn:hover { background-color: #222; }
+    .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+    .upload-area {
+        border: 2px dashed var(--border-color);
+        border-radius: 8px;
+        padding: 1rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-bottom: 1rem;
+    }
+    .upload-area:hover, .upload-area.dragover {
+        border-color: var(--accent-color);
+        background-color: #fff8e1;
+    }
+
+    .file-list {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background-color: #f9f9f9;
+    }
+
+    .file-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+    }
+
+    .file-name { display: flex; align-items: center; gap: 0.5rem; }
+
+    .progress-bar {
+        height: 4px;
+        background-color: #eee;
+        border-radius: 2px;
+        margin: 0.5rem 0;
+        overflow: hidden;
+    }
+    .progress-fill {
+        height: 100%;
+        background-color: var(--accent-color);
+        width: 0%;
+        transition: width 0.3s ease;
+    }
+
+    .remove-file { color: var(--error-color); cursor: pointer; font-size: 1rem; }
+    .remove-file:hover { color: #d32f2f; }
+
+    .log-container {
+        margin-top: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 0.5rem;
+        max-height: 280px;
+        overflow-y: auto;
+        background-color: #f9f9f9;
+    }
+    
+    .log-entry {
+        padding: 0.5rem;
+        margin-bottom: 0.5rem;
+        border-left: 4px solid var(--accent-color);
+        background-color: white;
+        border-radius: 4px;
+        font-size: 0.85rem;
+    }
+    .log-info  { border-left-color: var(--info-color); }
+    .log-success { border-left-color: var(--success-color); }
+    .log-error { border-left-color: var(--error-color); }
+    
+    .nav-buttons {
+        display: flex;
+        justify-content: flex-start;
+        gap: 1rem;
+        margin-top: 1.5rem;
+        flex-wrap: wrap;
+    }
+    
+    .nav-button {
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        background-color: white;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 0.9rem;
+        font-weight: 400;
+    }
+    .nav-button:hover { background-color: #f0f0f0; }
+    .nav-button:disabled { color: #aaa; cursor: not-allowed; }
+    
+    .toast {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 0.75rem 1rem;
+        border-radius: 4px;
+        color: white;
+        z-index: 1000;
+        opacity: 0;
+        transform: translateY(-20px);
+        transition: all 0.3s ease;
+        max-width: 340px;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast-success { background-color: var(--success-color); }
+    .toast-error   { background-color: var(--error-color); }
+    .toast-info    { background-color: var(--info-color); }
+    
+    /* Help Modal */
+    .help-modal {
+        display: none; position: fixed; z-index: 1001;
+        left: 0; top: 0; width: 100%; height: 100%;
+        background-color: rgba(0,0,0,0.5);
+    }
+    .help-modal-content {
+        background-color: #fefefe;
+        margin: 12% auto;
+        padding: 2rem;
+        border: 1px solid var(--border-color);
+        width: 80%; max-width: 580px;
+        border-radius: 8px; position: relative;
+    }
+    .close-btn {
+        color: var(--secondary-color); float: right;
+        font-size: 28px; font-weight: bold;
+        cursor: pointer; position: absolute; top: 10px; right: 10px;
+    }
+    .close-btn:hover { color: var(--error-color); }
+    .help-section {
+        margin-bottom: 1.5rem; padding: 1rem;
+        border: 1px solid var(--border-color);
+        border-radius: 4px; background-color: #fafafa;
+    }
+    .help-section h4 { margin-bottom: 0.5rem; }
+    .help-section ul { padding-left: 1.5rem; }
+    .help-section a { color: var(--info-color); text-decoration: none; }
+    .help-section a:hover { text-decoration: underline; }
+    
+    .top-banner {
+        margin-top: 0;
+        width: 100%;
+    }
+
+    .top-banner img {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    @media (max-width: 600px) {
+        .nav-buttons { flex-direction: column; }
+    }
+</style>
+</head>
+<body>
+    
+<div class="header">
+        <div class="header-left">
+            <a class="back-link" href="dashboard">← Home</a>
+        <h1>Helper Tool Output</h1>
+    </div>
+    <button class="btn-help-support" id="helpSupportBtn">Help / Support</button>
+</div>
+
+<div class="top-banner">
+    <img src="/static/images/top-banner.png" alt="SCM Redwood Automation Tool">
+</div>
+
+<!-- Help Modal -->
+<div class="help-modal" id="helpModal">
+    <div class="help-modal-content">
+        <span class="close-btn" id="closeHelpModal">&times;</span>
+        <h3 style="margin-bottom:1.25rem;">Help / Support</h3>
+        <div class="help-section">
+            <h4>Contact Support Team</h4>
+            <ul>
+                <li><a href="mailto:support@oracle.com">support@oracle.com</a></li>
+            </ul>
+        </div>
+        <div class="help-section">
+            <h4>Documentation</h4>
+            <p><a href="https://oracle-my.sharepoint.com/:b:/r/personal/reji_jose_oracle_com/Documents/SCM%20Team/SCM%20-%20Automation/SCM_Redwood%20Automation%20Tool_User%20Journey.pdf?csf=1&web=1&e=i3Hkm4" target="_blank">Download Help PDF</a></p>
+        </div>
+    </div>
+</div>
+
+<div class="oracle-jet-panel"></div>
+
+<div class="container">
+    <div class="page-header">
+        <h2>Helper Tool Output</h2>
+        <p>Upload the JAR file exported from your Oracle instance to generate the Helper Tool output file with customisations.</p>
+    </div>
+    
+    <div class="phase-content">
+        
+        <div class="upload-area" id="phase2-upload-area">
+            <p>Select a file or drop one here.</p>
+            <p style="font-size:0.8rem; color: var(--secondary-color); margin-top:0.25rem;">Only .jar files are accepted. Maximum file size is 500 MB.</p>
+        </div>
+
+        <div class="file-list" id="phase2-file-list"></div>
+        
+        <button class="btn" id="start-phase2-btn" disabled>Start Phase 2</button>
+        
+        <div class="log-container" id="phase2-log">
+            <div class="log-entry log-info">Ready to process JAR file.</div>
+        </div>
+        
+        <div class="nav-buttons">
+            <button class="nav-button" id="phase2-download-btn" disabled>
+                <span>⬇️</span> Download Output File
+            </button>
+            <button class="nav-button" id="phase2-process-another-btn">
+                <span>➡️</span> Process Another File
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/static/session.js"></script>
+<script>
+    window.sessionHelper.requireSession('/phase2');
+</script>
+<script>
+    const sessionFetch = (...args) => window.sessionHelper.fetchWithSession(...args);
+    // DOM
+    const uploadArea    = document.getElementById('phase2-upload-area');
+    const fileList      = document.getElementById('phase2-file-list');
+    const startBtn      = document.getElementById('start-phase2-btn');
+    const downloadBtn   = document.getElementById('phase2-download-btn');
+    const processAnotherBtn = document.getElementById('phase2-process-another-btn');
+    const logContainer  = document.getElementById('phase2-log');
+    const toast         = document.getElementById('toast');
+    const helpSupportBtn  = document.getElementById('helpSupportBtn');
+    const helpModal       = document.getElementById('helpModal');
+    const closeHelpModal  = document.getElementById('closeHelpModal');
+    
+    let phase2JarFile = null;
+    let sessionData   = {};
+    let pollingInterval = null;
+    
+    // Help modal
+    helpSupportBtn.addEventListener('click', () => helpModal.style.display = 'block');
+    closeHelpModal.addEventListener('click', () => helpModal.style.display = 'none');
+    window.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.style.display = 'none'; });
+    
+    // File input (injected)
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.jar';
+    fileInput.style.display = 'none';
+    uploadArea.appendChild(fileInput);
+    
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+    uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault(); uploadArea.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) handleFile(e.target.files[0]);
+    });
+    
+async function updatePhaseInSheet(customerName, username, phase) {
+  const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyKS57F-eFM0ysSVMIloUjkJ6f6ryXPIGhi9xF1ogVUZ7o-YdHSSJ7QBhgqaTKBc3rMaA/exec";
+
+//   console.log("script");
+
+  await fetch(WEB_APP_URL, {
+    method: "POST",
+    mode: "no-cors",
+    body: new URLSearchParams({
+      customerName,
+      username,
+      phase
+    }),
+  });
+
+//   console.log("request sent");
+}
+
+async function getSessionInfo() {
+  const response = await sessionFetch("/api/session-info", { method: "GET" });
+  if (!response.ok) {
+    throw new Error("Failed to fetch session info");
+  }
+  return response.json();
+}
+
+    function handleFile(file) {
+        if (!file.name.toLowerCase().endsWith('.jar')) {
+            showToast('Only JAR files are allowed.', 'error'); return;
+        }
+        if (file.size > 500 * 1024 * 1024) {
+            showToast('File size exceeds 500 MB limit.', 'error'); return;
+        }
+        phase2JarFile = file;
+        fileList.innerHTML = fileItemHtml(file.name);
+        startBtn.disabled = false;
+        fileList.querySelector('.remove-file').addEventListener('click', () => {
+            phase2JarFile = null; fileList.innerHTML = ''; startBtn.disabled = true;
+        });
+    }
+    
+    startBtn.addEventListener('click', async () => {
+        if (!phase2JarFile) { showToast('Please select a JAR file first.', 'error'); return; }
+        startBtn.disabled = true;
+        startBtn.textContent = 'Processing...';
+
+        try {
+            const formData = new FormData();
+            formData.append('file', phase2JarFile);
+
+            const response = await sessionFetch('/api/phase2/process', { method: 'POST', body: formData });
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+
+            const data = await response.json();
+            sessionData.sessionId = data.session_id;
+            sessionData.phase = 'phase2';
+            sessionData.username=data.user;
+            sessionData.customerName=data.customer;
+            showToast(`Phase 2 processing started! Session: ${data.session_id}`, 'success');
+            startLogPolling(data.session_id);
+            const sessionInfo = await getSessionInfo();
+            await updatePhaseInSheet(sessionInfo.customer, sessionInfo.user, "phase2");
+            
+        } catch (error) {
+            showToast(`Error starting Phase 2: ${error.message}`, 'error');
+        } finally {
+            startBtn.disabled = false;
+            startBtn.textContent = 'Start Phase 2';
+        }
+    });
+    
+    downloadBtn.addEventListener('click', () => {
+        if (!sessionData.sessionId) return showToast('No session available.', 'error');
+        window.location.href = `/api/session/${sessionData.sessionId}/download`;
+    });
+
+    processAnotherBtn.addEventListener('click', resetState);
+
+    function startLogPolling(sessionId) {
+        if (pollingInterval) clearInterval(pollingInterval);
+        pollingInterval = setInterval(async () => {
+            try {
+                const response = await sessionFetch(`/api/session/${sessionId}/logs`);
+                if (!response.ok) throw new Error();
+                const data = await response.json();
+                updateLogs(data.logs);
+
+                if (data.status === 'completed' || data.status === 'error') {
+                    clearInterval(pollingInterval); pollingInterval = null;
+                    if (data.status === 'completed') {
+                        downloadBtn.disabled = false;
+                        showToast('Phase 2 completed successfully!', 'success');
+                    } else {
+                        showToast('Phase 2 failed. Check logs for details.', 'error');
+                    }
+                }
+            } catch (e) { console.error('Polling error:', e); }
+        }, 2000);
+    }
+
+    function updateLogs(logs) {
+        logContainer.innerHTML = '';
+        logs.forEach(log => {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            if (log.includes('✅') || /success|completed/i.test(log)) entry.classList.add('log-success');
+            else if (log.includes('💥') || /error|failed/i.test(log)) entry.classList.add('log-error');
+            else entry.classList.add('log-info');
+            entry.textContent = log;
+            logContainer.appendChild(entry);
+        });
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    function resetState() {
+        if (pollingInterval) { clearInterval(pollingInterval); pollingInterval = null; }
+        phase2JarFile = null;
+        sessionData = {};
+        fileList.innerHTML = '';
+        startBtn.disabled = true;
+        downloadBtn.disabled = true;
+        logContainer.innerHTML = '<div class="log-entry log-info">Ready to process JAR file.</div>';
+    }
+
+    function fileItemHtml(name) {
+        return `
+            <div class="file-item">
+                <div class="file-name">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M4 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V5.5L9.5 0H4zm5.5 1.5v4h4L9.5 1.5z"/>
+                    </svg>
+                    ${name}
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:0%"></div></div>
+                <span class="remove-file">×</span>
+            </div>`;
+    }
+
+    let toastTimeout;
+    function showToast(message, type = 'info') {
+        toast.textContent = message;
+        toast.className = `toast toast-${type} show`;
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+</script>
+</body>
+</html>

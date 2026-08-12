@@ -1,0 +1,37 @@
+# Python bytecode and virtual environments
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Node.js dependencies and logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Application runtime data and generated reports
+logs/
+uploads_*/
+output_*/
+phase1_output_*.zip
+phase1_logs_*.zip
+*.zip
+*.pptx
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+
+# Microsoft Office temporary lock files
+~$*.xlsx
+~$*.xls
+~$*.pptx

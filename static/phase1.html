@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>SCM Redwood Migration</title>
+  <style>
+    :root {
+      --primary-color: #333;
+      --secondary-color: #666;
+      --accent-color: #f0a040;
+      --border-color: #ddd;
+      --success-color: #4caf50;
+      --error-color: #f44336;
+      --info-color: #2196f3;
+    }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100%; }
+    body { margin: 0; min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f5f5; color: var(--primary-color); display: flex; flex-direction: column; }
+    .header { background: var(--primary-color); color: white; padding: 1rem 2rem; display: flex; align-items: center; justify-content: space-between; }
+    .header-left { display: flex; gap: 1rem; align-items: center; }
+    .back-link { color: rgba(255,255,255,.8); text-decoration: none; }
+    .back-link:hover { color: white; }
+    .top-banner img { width: 100%; display: block; }
+    .oracle-jet-panel { height: 15px; background: url("https://artifacthub-phx.oci.oraclecorp.com/artifactory/acs-ofs-dev-local/oracle-jet-banner.png") repeat-x; }
+    .container { width: 100%; flex: 1; margin: 0; padding: 2rem; display: flex; }
+    .card { width: 100%; flex: 1; background: white; border: 1px solid var(--border-color); border-radius: 8px; padding: 1.5rem; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    label { font-size: .9rem; display: block; margin-bottom: .35rem; }
+    input, select { width: 100%; padding: .55rem; border: 1px solid var(--border-color); border-radius: 4px; }
+    .full { grid-column: 1 / -1; }
+    .btn { background: var(--primary-color); color: white; border: none; padding: .6rem 1rem; border-radius: 4px; cursor: pointer; }
+    .btn:disabled { background: #bbb; cursor: not-allowed; }
+    .log-container { margin-top: 1rem; border: 1px solid var(--border-color); border-radius: 8px; max-height: 300px; overflow-y: auto; background: #fafafa; padding: .5rem; }
+    .log-entry { background: white; border-left: 4px solid var(--info-color); border-radius: 4px; padding: .45rem .5rem; margin-bottom: .4rem; font-size: .85rem; }
+    .log-success { border-left-color: var(--success-color); }
+    .log-error { border-left-color: var(--error-color); }
+    .actions { display: flex; gap: .75rem; margin-top: 1rem; }
+    .toast { position: fixed; top: 20px; right: 20px; color: #fff; padding: .7rem 1rem; border-radius: 4px; opacity: 0; transform: translateY(-20px); transition: all .2s; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast-info { background: var(--info-color); }
+    .toast-success { background: var(--success-color); }
+    .toast-error { background: var(--error-color); }
+    @media (max-width: 700px) {
+      .header { padding: 1rem; }
+      .container { padding: 1rem; }
+      .grid { grid-template-columns: 1fr; }
+      .actions { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <a class="back-link" href="dashboard">← Home</a>
+      <h3 style="margin:0; font-weight:500;">SCM Redwood Migration</h3>
+    </div>
+  </div>
+  <div class="top-banner"><img src="/static/images/top-banner.png" alt="SCM Redwood Automation Tool" /></div>
+  <div class="oracle-jet-panel"></div>
+
+  <div class="container">
+    <div class="card">
+      <h2 style="margin-top:0; font-weight:500;">Phase 1 - Redwood Migration Automation</h2>
+      <p style="color:var(--secondary-color); margin-top:0;">Runs <code>combine.py</code> for feature enablement, profile options, and ESS jobs.</p>
+
+      <div class="grid">
+        <div>
+          <label for="fusionUrl">Fusion URL</label>
+          <input id="fusionUrl" placeholder="https://your-instance.oraclecloud.com/..." />
+        </div>
+        <div>
+          <label for="username">Username</label>
+          <input id="username" placeholder="user@oracle.com" />
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <input id="password" type="password" placeholder="••••••••" />
+        </div>
+        <div>
+          <label for="runOnly">Run only (optional)</label>
+          <select id="runOnly">
+            <option value="all">All</option>
+            <option value="optin">Opt In</option>
+            <option value="profile">Profile Options</option>
+            <option value="ess">ESS Jobs</option>
+            <option value="auto">Auto</option>
+          </select>
+        </div>
+        <div class="full">
+          <label for="excelFile">Upload Excel file</label>
+          <input id="excelFile" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" id="startBtn">Start Phase 1</button>
+        <button class="btn" id="downloadBtn" disabled>Download Output</button>
+        <button class="btn" id="downloadPptBtn" disabled>Download PPT</button>
+      </div>
+
+      <div class="log-container" id="logContainer">
+        <div class="log-entry">Ready to start Phase 1 automation.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/static/session.js"></script>
+  <script>
+    window.sessionHelper.requireSession('/phase1');
+    const sessionFetch = (...args) => window.sessionHelper.fetchWithSession(...args);
+
+    async function updatePhaseInSheet(customerName, username, phase) {
+      const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyKS57F-eFM0ysSVMIloUjkJ6f6ryXPIGhi9xF1ogVUZ7o-YdHSSJ7QBhgqaTKBc3rMaA/exec";
+
+      await fetch(WEB_APP_URL, {
+        method: "POST",
+        mode: "no-cors",
+        body: new URLSearchParams({
+          customerName,
+          username,
+          phase
+        }),
+      });
+    }
+
+    async function getSessionInfo() {
+      const response = await sessionFetch("/api/session-info", { method: "GET" });
+      if (!response.ok) {
+        throw new Error("Failed to fetch session info");
+      }
+      return response.json();
+    }
+
+    const startBtn = document.getElementById('startBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const downloadPptBtn = document.getElementById('downloadPptBtn');
+    const logContainer = document.getElementById('logContainer');
+    const toast = document.getElementById('toast');
+
+    let sessionId = window.sessionStorage.getItem('phase1_session_id') || null;
+    let pollTimer = null;
+
+    function safeFileName(value) {
+      return (value || '')
+        .trim()
+        .replace(/[^A-Za-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '') || 'output';
+    }
+
+    async function phase1CustomerZipName(activeSessionId, fallbackName) {
+      try {
+        const statusResponse = await sessionFetch(`/api/session/${activeSessionId}/status`);
+        if (!statusResponse.ok) return fallbackName;
+        const status = await statusResponse.json();
+        const customer = safeFileName(status.customer || '');
+        return customer ? `${customer}.zip` : fallbackName;
+      } catch (_) {
+        return fallbackName;
+      }
+    }
+
+    startBtn.addEventListener('click', async () => {
+      const fusionUrl = document.getElementById('fusionUrl').value.trim();
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const excelFile = document.getElementById('excelFile').files[0];
+      const runOnly = document.getElementById('runOnly').value;
+
+      if (!fusionUrl || !username || !password) {
+        showToast('Fusion URL, Username, and Password are required.', 'error');
+        return;
+      }
+      if (!excelFile) {
+        showToast('Please upload an Excel file before starting Phase 1.', 'error');
+        return;
+      }
+      if (!excelFile.name.toLowerCase().endsWith('.xlsx')) {
+        showToast('Only .xlsx Excel files are allowed.', 'error');
+        return;
+      }
+
+      startBtn.disabled = true;
+      startBtn.textContent = 'Starting...';
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = 'Preparing Output...';
+      downloadPptBtn.disabled = true;
+      downloadPptBtn.textContent = 'Preparing PPT...';
+
+      let started = false;
+      try {
+        const formData = new FormData();
+        formData.append('fusion_url', fusionUrl);
+        formData.append('username', username);
+        formData.append('password', password);
+        formData.append('excel_file', excelFile);
+        formData.append('run_only', runOnly || 'all');
+
+        const response = await sessionFetch('/api/phase1/start', {
+          method: 'POST',
+          body: formData
+        });
+        if (!response.ok) throw new Error(await response.text());
+
+        const data = await response.json();
+        sessionId = data.session_id;
+        window.sessionStorage.setItem('phase1_session_id', sessionId);
+        started = true;
+        const sessionInfo = await getSessionInfo();
+        await updatePhaseInSheet(sessionInfo.customer, sessionInfo.user, "phase4");
+        showToast('Phase 1 started successfully.', 'success');
+        downloadBtn.textContent = 'Preparing Output...';
+        downloadPptBtn.textContent = 'Preparing PPT...';
+        startPolling();
+      } catch (err) {
+        showToast(`Failed to start: ${err.message}`, 'error');
+        downloadBtn.textContent = 'Download Output';
+        downloadPptBtn.textContent = 'Download PPT';
+      } finally {
+        if (!started) {
+          startBtn.disabled = false;
+          startBtn.textContent = 'Start Phase 1';
+        }
+      }
+    });
+
+    downloadPptBtn.addEventListener('click', async () => {
+      const activeSessionId = sessionId || window.sessionStorage.getItem('phase1_session_id');
+      if (!activeSessionId) {
+        showToast('No Phase 1 session found for PPT download.', 'error');
+        return;
+      }
+
+      downloadPptBtn.disabled = true;
+      downloadPptBtn.textContent = 'Building PPT...';
+      try {
+        const response = await sessionFetch(`/api/session/${activeSessionId}/download-ppt?t=${Date.now()}`, {
+          cache: 'no-store'
+        });
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+        const filename = filenameMatch ? filenameMatch[1] : 'phase1_report.pptx';
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        showToast('PPT download started.', 'success');
+      } catch (err) {
+        showToast(`PPT download failed: ${err.message}`, 'error');
+      } finally {
+        downloadPptBtn.disabled = false;
+        downloadPptBtn.textContent = 'Download PPT';
+      }
+    });
+
+    downloadBtn.addEventListener('click', async () => {
+      const activeSessionId = sessionId || window.sessionStorage.getItem('phase1_session_id');
+      if (!activeSessionId) {
+        showToast('No Phase 1 session found for download.', 'error');
+        return;
+      }
+
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = 'Downloading...';
+      try {
+        const response = await sessionFetch(`/api/session/${activeSessionId}/download`);
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const blob = await response.blob();
+        const disposition = response.headers.get('Content-Disposition') || '';
+        const filenameMatch = disposition.match(/filename="?([^"]+)"?/i);
+        const fallbackName = filenameMatch ? filenameMatch[1] : 'phase1_output.zip';
+        const filename = await phase1CustomerZipName(activeSessionId, fallbackName);
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+        showToast('Download started.', 'success');
+      } catch (err) {
+        showToast(`Download failed: ${err.message}`, 'error');
+      } finally {
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = 'Download Output';
+      }
+    });
+
+    function startPolling() {
+      if (pollTimer) clearInterval(pollTimer);
+      pollTimer = setInterval(async () => {
+        if (!sessionId) return;
+        try {
+          const response = await sessionFetch(`/api/session/${sessionId}/logs`);
+          if (!response.ok) return;
+          const payload = await response.json();
+          renderLogs(payload.logs || []);
+
+          const outputReady = payload.download_ready || payload.summary_ready;
+          const pptReady = outputReady || payload.ppt_ready;
+
+          if (outputReady) {
+            startBtn.disabled = false;
+            startBtn.textContent = 'Start Phase 1';
+            downloadBtn.disabled = false;
+            downloadBtn.textContent = 'Download Output';
+          }
+          if (pptReady) {
+            downloadPptBtn.disabled = false;
+            downloadPptBtn.textContent = 'Download PPT';
+          }
+
+          if (payload.status === 'completed' || payload.status === 'error') {
+            clearInterval(pollTimer);
+            pollTimer = null;
+            startBtn.disabled = false;
+            startBtn.textContent = 'Start Phase 1';
+            if (payload.status === 'completed') {
+              downloadBtn.disabled = false;
+              downloadBtn.textContent = 'Download Output';
+              downloadPptBtn.disabled = false;
+              downloadPptBtn.textContent = 'Download PPT';
+              showToast('Phase 1 completed.', 'success');
+            } else {
+              downloadBtn.textContent = 'Download Output';
+              downloadBtn.disabled = !outputReady;
+              downloadPptBtn.textContent = 'Download PPT';
+              downloadPptBtn.disabled = !pptReady;
+              showToast('Phase 1 failed. Check logs.', 'error');
+            }
+          }
+        } catch (_) {}
+      }, 2000);
+    }
+
+    function renderLogs(logs) {
+      logContainer.innerHTML = '';
+      logs.forEach(log => {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        if (log.includes('✅') || /completed|success/i.test(log)) div.classList.add('log-success');
+        if (log.includes('💥') || /error|failed/i.test(log)) div.classList.add('log-error');
+        div.textContent = log;
+        logContainer.appendChild(div);
+      });
+      logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    let toastTimeout;
+    function showToast(message, type = 'info') {
+      toast.textContent = message;
+      toast.className = `toast toast-${type} show`;
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+  </script>
+</body>
+</html>
