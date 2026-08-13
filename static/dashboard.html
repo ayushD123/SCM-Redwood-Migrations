@@ -255,7 +255,7 @@
         </div>
     </div>
     <div class="top-banner">
-        <img src="/static/images/top-banner.png" alt="SCM Redwood Automation Tool">
+        <img src="__APP_BASE_PATH__/static/images/top-banner.png" alt="SCM Redwood Automation Tool">
     </div>
 </div>
 
@@ -347,7 +347,8 @@
     window.addEventListener('click', (e) => { if (e.target === helpModal) helpModal.style.display = 'none'; });
 
 </script>
-<script src="/static/session.js"></script>
+<script>window.REDWOOD_BASE_PATH = "__APP_BASE_PATH__";</script>
+<script src="__APP_BASE_PATH__/static/session.js"></script>
 <script>
     window.sessionHelper.requireSession('/');
 const statusToggleBtn = document.getElementById('statusToggleBtn');

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, BackgroundTasks, Cookie
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
@@ -18,11 +18,25 @@ import logging
 from datetime import datetime
 import traceback
 import tempfile
+import threading
+import time
 import pandas as pd
 import re
 import requests
 
-df = pd.read_excel("static/Redwood_SCM_Features_V1.11.xlsx", sheet_name=0)
+APP_DIR = Path(__file__).resolve().parent
+
+
+def _normalize_base_path(value: str) -> str:
+    normalized = f"/{str(value or '').strip().strip('/')}"
+    return "" if normalized == "/" else normalized
+
+
+APP_BASE_PATH = _normalize_base_path(os.getenv("APP_BASE_PATH", ""))
+ARTIFACT_RETENTION_MINUTES = max(5, int(os.getenv("ARTIFACT_RETENTION_MINUTES", "120")))
+ARTIFACT_RETENTION_SECONDS = ARTIFACT_RETENTION_MINUTES * 60
+
+df = pd.read_excel(APP_DIR / "static/Redwood_SCM_Features_V1.11.xlsx", sheet_name=0)
 table_html = df.to_html(index=False, classes="excel-table")
 excel_template = """<!DOCTYPE html>
 <html lang=\"en\">
@@ -72,13 +86,11 @@ excel_template = """<!DOCTYPE html>
   <div class=\"table-wrapper\">
     {table_html}
   </div>
-  <script src=\"/static/session.js\"></script>
+  <script>window.REDWOOD_BASE_PATH = \"{app_base_path}\";</script>
+  <script src=\"{app_base_path}/static/session.js\"></script>
   <script>window.sessionHelper.requireSession('/');</script>
 </body>
 </html>"""
-excel_page = excel_template.replace("{table_html}", table_html)
-Path("static/excel.html").write_text(excel_page, encoding="utf-8")
-
 class SaveSessionPayload(BaseModel):
     user: str
     customer: str
@@ -95,7 +107,7 @@ def _zip_with_customer_root(source_zip: Path, session_id: str, session: Dict, la
         raise HTTPException(status_code=404, detail="Output ZIP not found")
 
     customer_root = _sanitize_filename(session.get("customer", ""))
-    wrapped_zip = Path(f"{label}_{session_id}_customer_root.zip")
+    wrapped_zip = APP_DIR / f"{label}_{session_id}_customer_root.zip"
     if wrapped_zip.exists():
         wrapped_zip.unlink()
 
@@ -161,18 +173,24 @@ except ImportError as e:
     logger.warning(f"Phase 3 modules not available: {e}")
     PHASE3_AVAILABLE = False
 
-app = FastAPI(title="Oracle Migration Tool API")
+app = FastAPI(title="Oracle Migration Tool API", root_path=APP_BASE_PATH)
 
 # Serve static HTML pages
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
+
+
+def _html_page(filename: str) -> HTMLResponse:
+    html = (APP_DIR / "static" / filename).read_text(encoding="utf-8")
+    html = html.replace("__APP_BASE_PATH__", APP_BASE_PATH)
+    return HTMLResponse(html)
 
 @app.get("/")
 async def root():
-    return FileResponse("static/index.html")
+    return _html_page("index.html")
 
 @app.get("/dashboard")
 async def root():
-    response = FileResponse("static/dashboard.html")
+    response = _html_page("dashboard.html")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -180,16 +198,22 @@ async def root():
 
 @app.get("/phase2")
 async def phase2_page():
-    return FileResponse("static/phase2.html")
+    return _html_page("phase2.html")
 
 
 @app.get("/phase1")
 async def phase1_page():
-    response = FileResponse("static/phase1.html")
+    response = _html_page("phase1.html")
     response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+
+@app.get("/excel")
+async def excel_page():
+    html = excel_template.replace("{table_html}", table_html).replace("{app_base_path}", APP_BASE_PATH)
+    return HTMLResponse(html)
 
 
 # Client-specific temporary removal: SCM Redwood Customizations Tool.
@@ -207,13 +231,9 @@ async def phase1_page():
 @app.get("/api/health")
 async def health_check():
     """Health check endpoint to verify server and dependencies"""
-    #one line added for nonsso
-    playwright_available = False
     try:
-        #NON SSO
-        # from playwright.async_api import async_playwright
-        # playwright_available = True
-        pass
+        from playwright.sync_api import sync_playwright  # noqa: F401
+        playwright_available = True
     except ImportError:
         playwright_available = False
 
@@ -223,14 +243,25 @@ async def health_check():
     except ImportError:
         pandas_available = False
 
+    current_job = _active_job_snapshot()
     return {
         "status": "healthy",
         "playwright_available": playwright_available,
         "pandas_available": pandas_available,
         "phase3_available": PHASE3_AVAILABLE,
         "active_sessions": len(sessions),
-        "tool_jar_exists": os.path.exists(TOOL_JAR)
+        "tool_jar_exists": (APP_DIR / TOOL_JAR).exists(),
+        "busy": current_job is not None,
+        "active_job": current_job,
+        "base_path": APP_BASE_PATH,
+        "artifact_retention_minutes": ARTIFACT_RETENTION_MINUTES,
     }
+
+
+@app.get("/api/job/status")
+async def job_status():
+    current_job = _active_job_snapshot()
+    return {"busy": current_job is not None, "active_job": current_job}
 
 # Enable CORS
 app.add_middleware(
@@ -266,6 +297,168 @@ TOOL_JAR = "ScmRedwoodCustHelper-24.04.jar"
 # In-memory storage
 sessions: Dict[str, Dict] = {}
 job_logs: Dict[str, List[str]] = {}
+job_control_lock = threading.Lock()
+active_job: Optional[Dict[str, str]] = None
+cleanup_timers: Dict[str, threading.Timer] = {}
+cleanup_stop_event = threading.Event()
+
+
+def _active_job_snapshot() -> Optional[Dict[str, str]]:
+    with job_control_lock:
+        return dict(active_job) if active_job else None
+
+
+def _reserve_job(session_id: str, phase: str) -> bool:
+    global active_job
+    with job_control_lock:
+        if active_job is not None:
+            return False
+        previous_cleanup = cleanup_timers.pop(session_id, None)
+        if previous_cleanup:
+            previous_cleanup.cancel()
+        active_job = {
+            "session_id": session_id,
+            "phase": phase,
+            "started_at": datetime.now().isoformat(),
+        }
+        return True
+
+
+def _release_job(session_id: str) -> None:
+    global active_job
+    with job_control_lock:
+        if active_job and active_job.get("session_id") == session_id:
+            active_job = None
+
+
+def _remove_path(path: Path) -> None:
+    try:
+        if path.is_dir():
+            shutil.rmtree(path, ignore_errors=True)
+        elif path.exists():
+            path.unlink(missing_ok=True)
+    except Exception as exc:
+        logger.warning("Unable to remove temporary artifact %s: %s", path, exc)
+
+
+def _cleanup_session_artifacts(session_id: str, remove_state: bool = True) -> None:
+    session = sessions.get(session_id, {})
+    explicit_paths = [
+        session.get("upload_dir"),
+        session.get("phase1_run_dir"),
+        session.get("output_zip"),
+        session.get("ppt_path"),
+    ]
+    for value in explicit_paths:
+        if value:
+            _remove_path(Path(value))
+
+    for path in [
+        APP_DIR / f"work_{session_id}",
+        APP_DIR / f"output_{session_id}",
+        APP_DIR / f"downloads_{session_id}",
+        APP_DIR / f"uploads_{session_id}",
+        APP_DIR / f"upload_{session_id}.jar",
+        APP_DIR / f"output_{session_id}.zip",
+        APP_DIR / f"phase1_logs_{session_id}.zip",
+        APP_DIR / f"phase1_output_{session_id}.zip",
+    ]:
+        _remove_path(path)
+
+    for wrapped_zip in APP_DIR.glob(f"*_{session_id}_customer_root.zip"):
+        _remove_path(wrapped_zip)
+
+    with job_control_lock:
+        timer = cleanup_timers.pop(session_id, None)
+        if timer and timer is not threading.current_thread():
+            timer.cancel()
+        if remove_state:
+            sessions.pop(session_id, None)
+            job_logs.pop(session_id, None)
+
+
+def _schedule_session_cleanup(session_id: str) -> None:
+    session = sessions.get(session_id)
+    if session is not None:
+        session["expires_at"] = datetime.fromtimestamp(
+            time.time() + ARTIFACT_RETENTION_SECONDS
+        ).isoformat()
+
+    timer = threading.Timer(
+        ARTIFACT_RETENTION_SECONDS,
+        _cleanup_session_artifacts,
+        args=(session_id,),
+    )
+    timer.daemon = True
+    with job_control_lock:
+        previous = cleanup_timers.pop(session_id, None)
+        if previous:
+            previous.cancel()
+        cleanup_timers[session_id] = timer
+    timer.start()
+
+
+def _cleanup_stale_runtime_artifacts() -> None:
+    cutoff = time.time() - ARTIFACT_RETENTION_SECONDS
+    protected_session_ids = set(sessions)
+    protected_paths = set()
+    for session in sessions.values():
+        for key in ("upload_dir", "phase1_run_dir", "output_zip", "ppt_path"):
+            value = session.get(key)
+            if value:
+                try:
+                    protected_paths.add(Path(value).resolve())
+                except (OSError, RuntimeError):
+                    continue
+
+    patterns = [
+        "work_*",
+        "output_*",
+        "downloads_*",
+        "uploads_*",
+        "upload_*.jar",
+        "phase1_*.zip",
+        "*_customer_root.zip",
+        "logs/run_*",
+    ]
+    for pattern in patterns:
+        for path in APP_DIR.glob(pattern):
+            try:
+                resolved_path = path.resolve()
+                if any(session_id in str(resolved_path) for session_id in protected_session_ids):
+                    continue
+                if any(
+                    resolved_path == protected_path or protected_path in resolved_path.parents
+                    for protected_path in protected_paths
+                ):
+                    continue
+                if path.stat().st_mtime < cutoff:
+                    _remove_path(path)
+            except FileNotFoundError:
+                continue
+
+
+def _periodic_artifact_cleanup() -> None:
+    scan_interval_seconds = min(300, max(60, ARTIFACT_RETENTION_SECONDS // 4))
+    while not cleanup_stop_event.wait(scan_interval_seconds):
+        _cleanup_stale_runtime_artifacts()
+
+
+@app.on_event("startup")
+async def cleanup_stale_artifacts_on_startup() -> None:
+    cleanup_stop_event.clear()
+    _cleanup_stale_runtime_artifacts()
+    cleanup_thread = threading.Thread(
+        target=_periodic_artifact_cleanup,
+        name="redwood-artifact-cleanup",
+        daemon=True,
+    )
+    cleanup_thread.start()
+
+
+@app.on_event("shutdown")
+async def stop_artifact_cleanup() -> None:
+    cleanup_stop_event.set()
 
 
 @app.post("/api/save-session")
@@ -287,7 +480,7 @@ async def save_session(payload: SaveSessionPayload, response: Response):
         value=session_id,
         httponly=True,
         samesite="lax",
-        path="/"
+        path=APP_BASE_PATH or "/"
     )
     return {
         "has_session": True,
@@ -468,7 +661,7 @@ async def process_phase2(
     background_tasks: BackgroundTasks = None
 ):
     """Process uploaded JAR file in Phase 2"""
-    if not file.filename.endswith('.jar'):
+    if not (file.filename or "").lower().endswith('.jar'):
         raise HTTPException(status_code=400, detail="Only JAR files are allowed")
 
     sid = (
@@ -476,42 +669,43 @@ async def process_phase2(
         or request.cookies.get("session_id")
         or request.headers.get("X-Session-Id")
     )
-    if not sid:
-        sid = str(uuid.uuid4())
+    if not sid or sid not in sessions:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    if not _reserve_job(sid, "phase2"):
+        raise HTTPException(
+            status_code=409,
+            detail="Server is busy with another automation. Please try again after it finishes.",
+        )
 
-    user=sessions[sid]["user"]
-    customer=sessions[sid]["customer"]
-
-    existing_session = sessions.get(sid)
-    if existing_session:
-        print(user)
-        print(customer)
+    work_dir = APP_DIR / f"work_{sid}"
+    jar_path = work_dir / "temp.jar"
+    try:
+        existing_session = sessions[sid]
+        user = existing_session.get("user")
+        customer = existing_session.get("customer")
         existing_session.update({
             "phase": 2,
             "status": "processing",
             "created_at": datetime.now(),
-            "filename": file.filename
-        })
-    else:
-        sessions[sid] = {
-            "phase": 2,
-            "status": "processing",
-            "created_at": datetime.now(),
             "filename": file.filename,
-            "user": user,
-            "customer": customer
-        }
-    job_logs[sid] = []
+        })
+        job_logs[sid] = []
 
-    work_dir = Path(f"work_{sid}")
-    work_dir.mkdir(exist_ok=True)
+        work_dir.mkdir(exist_ok=True)
+        with jar_path.open("wb") as destination:
+            shutil.copyfileobj(file.file, destination)
+        if jar_path.stat().st_size == 0:
+            raise ValueError("Uploaded JAR is empty")
 
-    jar_path = work_dir / "temp.jar"
-    with open(jar_path, "wb") as f:
-        content = await file.read()
-        f.write(content)
-
-    background_tasks.add_task(process_jar_background, sid, jar_path)
+        background_tasks.add_task(process_jar_background, sid, jar_path)
+    except Exception as exc:
+        _release_job(sid)
+        _remove_path(work_dir)
+        sessions[sid]["status"] = "error"
+        sessions[sid]["error"] = str(exc)
+        raise HTTPException(status_code=500, detail=f"Unable to start Phase 2: {exc}") from exc
+    finally:
+        await file.close()
 
     return {
         "session_id": sid,
@@ -527,12 +721,12 @@ async def process_phase2(
 async def process_jar_background(session_id: str, jar_path: Path):
     """Windows-optimized Phase 2 processing"""
     log_queue = job_logs[session_id]
-    work_dir = Path(f"work_{session_id}").resolve()
-    output_dir = Path(f"output_{session_id}").resolve()
-    zip_path = Path(f"output_{session_id}.zip").resolve()
+    work_dir = (APP_DIR / f"work_{session_id}").resolve()
+    output_dir = (APP_DIR / f"output_{session_id}").resolve()
+    zip_path = (APP_DIR / f"output_{session_id}.zip").resolve()
 
     # Save uploaded JAR to a safe temp location BEFORE cleanup
-    temp_jar_safe = Path(f"upload_{session_id}.jar").resolve()
+    temp_jar_safe = (APP_DIR / f"upload_{session_id}.jar").resolve()
 
     try:
         log_queue.append(f"[{datetime.now()}] 🚀 Starting Phase 2 processing (Windows-optimized)")
@@ -650,7 +844,7 @@ ReportOnly=Y
         log_queue.append(f"✅ InputParams.txt created ({params_file.stat().st_size} bytes)")
 
         # === COPY TOOL JAR ===
-        tool_jar_src = Path(TOOL_JAR).resolve()
+        tool_jar_src = (APP_DIR / TOOL_JAR).resolve()
         if not tool_jar_src.exists():
             raise FileNotFoundError(f"Tool JAR not found: {tool_jar_src}")
         tool_jar_dest = work_dir / TOOL_JAR
@@ -799,6 +993,8 @@ ReportOnly=Y
                 log_queue.append(f"🧹 Cleaned up temp backup: {temp_jar_safe.name}")
             except Exception as e:
                 log_queue.append(f"🧹 Cleanup warning for {temp_jar_safe.name}: {type(e).__name__}")
+        _release_job(session_id)
+        _schedule_session_cleanup(session_id)
 
 
 def _phase1_run_dir_from_log_line(line: str) -> Optional[Path]:
@@ -867,7 +1063,7 @@ def _refresh_phase1_download_ready(session_id: str):
     if session.get("status") == "completed":
         _mark_phase1_download_ready(
             session_id,
-            _latest_phase1_run_dir(Path("logs").resolve(), set()),
+            _latest_phase1_run_dir((APP_DIR / "logs").resolve(), set()),
         )
 
 
@@ -881,7 +1077,7 @@ def _build_phase1_logs_zip(session_id: str, session: Dict) -> Path:
     if not log_files:
         raise HTTPException(status_code=404, detail="No Phase 1 log files found")
 
-    temp_zip = Path(f"phase1_logs_{session_id}.zip")
+    temp_zip = APP_DIR / f"phase1_logs_{session_id}.zip"
     if temp_zip.exists():
         temp_zip.unlink()
 
@@ -900,7 +1096,7 @@ def _build_phase1_output_zip(session_id: str, session: Dict) -> Path:
 
     customer_safe = _sanitize_filename(session.get("customer", ""))
     root_name = customer_safe or run_dir.name
-    temp_zip = Path(f"phase1_output_{session_id}.zip")
+    temp_zip = APP_DIR / f"phase1_output_{session_id}.zip"
     if temp_zip.exists():
         temp_zip.unlink()
 
@@ -925,7 +1121,7 @@ def _generate_phase1_ppt(session_id: str, session: Dict) -> Path:
     if not _phase1_summary_ready(run_dir):
         raise HTTPException(status_code=400, detail="Summary log is not ready yet")
 
-    create_ppt_script = Path("create_ppt.py").resolve()
+    create_ppt_script = (APP_DIR / "create_ppt.py").resolve()
     if not create_ppt_script.exists():
         raise HTTPException(status_code=404, detail="create_ppt.py not found")
 
@@ -939,7 +1135,7 @@ def _generate_phase1_ppt(session_id: str, session: Dict) -> Path:
         [sys.executable, str(create_ppt_script), str(run_dir.resolve()), str(output_pptx)],
         capture_output=True,
         text=True,
-        cwd=str(Path.cwd()),
+        cwd=str(APP_DIR),
     )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "PPT generation failed").strip()
@@ -962,11 +1158,11 @@ def run_phase1_background(session_id: str, payload: Phase1StartRequest):
         session = sessions[session_id]
         log_queue.append(f"[{datetime.now()}] 🚀 Starting Phase 1 automation")
 
-        combine_script = Path("combine.py").resolve()
+        combine_script = (APP_DIR / "combine.py").resolve()
         if not combine_script.exists():
             raise FileNotFoundError("combine.py not found in project root")
 
-        logs_root = Path("logs").resolve()
+        logs_root = (APP_DIR / "logs").resolve()
         pre_runs = set()
         if logs_root.exists():
             pre_runs = {p.resolve() for p in logs_root.iterdir() if p.is_dir()}
@@ -990,7 +1186,7 @@ def run_phase1_background(session_id: str, payload: Phase1StartRequest):
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            cwd=str(Path.cwd()),
+            cwd=str(APP_DIR),
             env=env,
             bufsize=1,
         )
@@ -1044,6 +1240,9 @@ def run_phase1_background(session_id: str, payload: Phase1StartRequest):
         sessions[session_id]["error"] = str(e)
         log_queue.append(f"💥 Phase 1 failed: {str(e)}")
         log_queue.append(f"📋 Traceback: {traceback.format_exc()}")
+    finally:
+        _release_job(session_id)
+        _schedule_session_cleanup(session_id)
 
 
 @app.post("/api/phase1/start")
@@ -1073,8 +1272,13 @@ async def start_phase1(
     file_ext = Path(original_filename).suffix.lower()
     if file_ext != ".xlsx":
         raise HTTPException(status_code=400, detail="Only .xlsx Excel files are allowed")
+    if not _reserve_job(sid, "phase1"):
+        raise HTTPException(
+            status_code=409,
+            detail="Server is busy with another automation. Please try again after it finishes.",
+        )
 
-    uploads_dir = Path(f"uploads_{sid}")
+    uploads_dir = APP_DIR / f"uploads_{sid}"
     shutil.rmtree(uploads_dir, ignore_errors=True)
     uploads_dir.mkdir(parents=True, exist_ok=True)
     saved_excel_path = uploads_dir / f"phase1_input{file_ext}"
@@ -1089,14 +1293,21 @@ async def start_phase1(
                 raise ValueError("Uploaded file is not a valid .xlsx workbook")
     except ValueError as exc:
         saved_excel_path.unlink(missing_ok=True)
+        _release_job(sid)
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         saved_excel_path.unlink(missing_ok=True)
+        _release_job(sid)
         raise HTTPException(status_code=500, detail=f"Unable to save uploaded Excel file: {exc}") from exc
     finally:
         await excel_file.close()
 
-    run_only_mode = _normalize_phase1_run_only(run_only)
+    try:
+        run_only_mode = _normalize_phase1_run_only(run_only)
+    except Exception:
+        _release_job(sid)
+        _remove_path(uploads_dir)
+        raise
     payload = Phase1StartRequest(
         fusion_url=fusion_url,
         username=username,
@@ -1621,7 +1832,7 @@ async def download_results(session_id: str):
         if session["status"] != "completed":
             raise HTTPException(status_code=400, detail="Processing not completed")
 
-        zip_path = Path(f"output_{session_id}.zip")
+        zip_path = APP_DIR / f"output_{session_id}.zip"
         if not zip_path.exists():
             raise HTTPException(status_code=404, detail="Output file not found")
 
@@ -1725,36 +1936,16 @@ async def download_phase1_ppt(session_id: str):
 async def delete_session(session_id: str):
     if session_id not in sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    work_dir      = Path(f"work_{session_id}")
-    output_dir    = Path(f"output_{session_id}")
-    downloads_dir = Path(f"downloads_{session_id}")
-    uploads_dir   = Path(f"uploads_{session_id}")
-    zip_path      = Path(f"output_{session_id}.zip")
-    phase1_zip    = Path(f"phase1_logs_{session_id}.zip")
-    phase1_output = Path(f"phase1_output_{session_id}.zip")
-
-    shutil.rmtree(work_dir,      ignore_errors=True)
-    shutil.rmtree(output_dir,    ignore_errors=True)
-    shutil.rmtree(downloads_dir, ignore_errors=True)
-    shutil.rmtree(uploads_dir,   ignore_errors=True)
-    if zip_path.exists():
-        zip_path.unlink()
-    if phase1_zip.exists():
-        phase1_zip.unlink()
-    if phase1_output.exists():
-        phase1_output.unlink()
-    for wrapped_zip in Path.cwd().glob(f"*_{session_id}_customer_root.zip"):
-        wrapped_zip.unlink()
-
+    current_job = _active_job_snapshot()
+    if current_job and current_job.get("session_id") == session_id:
+        raise HTTPException(status_code=409, detail="Cannot delete a session while its automation is running")
     page_id = sessions[session_id].get("page_id")
     if page_id:
         for pattern in [f"phase3_{page_id}_*", f"output_{page_id}_{session_id}*", f"*_mapping_report_{session_id}*"]:
             for file in glob.glob(pattern):
                 Path(file).unlink(missing_ok=True)
 
-    del sessions[session_id]
-    if session_id in job_logs:
-        del job_logs[session_id]
+    _cleanup_session_artifacts(session_id)
 
     return {"status": "success", "message": f"Session {session_id} deleted"}
 

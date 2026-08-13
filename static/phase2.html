@@ -319,7 +319,7 @@
 </div>
 
 <div class="top-banner">
-    <img src="/static/images/top-banner.png" alt="SCM Redwood Automation Tool">
+    <img src="__APP_BASE_PATH__/static/images/top-banner.png" alt="SCM Redwood Automation Tool">
 </div>
 
 <!-- Help Modal -->
@@ -376,7 +376,8 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="/static/session.js"></script>
+<script>window.REDWOOD_BASE_PATH = "__APP_BASE_PATH__";</script>
+<script src="__APP_BASE_PATH__/static/session.js"></script>
 <script>
     window.sessionHelper.requireSession('/phase2');
 </script>
@@ -468,11 +469,19 @@ async function getSessionInfo() {
         startBtn.textContent = 'Processing...';
 
         try {
+            const jobStatusResponse = await sessionFetch('/api/job/status', { cache: 'no-store' });
+            if (jobStatusResponse.ok) {
+                const jobStatus = await jobStatusResponse.json();
+                if (jobStatus.busy) {
+                    throw new Error('Server is busy with another automation. Please try again after it finishes.');
+                }
+            }
+
             const formData = new FormData();
             formData.append('file', phase2JarFile);
 
             const response = await sessionFetch('/api/phase2/process', { method: 'POST', body: formData });
-            if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+            if (!response.ok) throw new Error(await window.sessionHelper.errorMessage(response));
 
             const data = await response.json();
             sessionData.sessionId = data.session_id;
@@ -494,7 +503,7 @@ async function getSessionInfo() {
     
     downloadBtn.addEventListener('click', () => {
         if (!sessionData.sessionId) return showToast('No session available.', 'error');
-        window.location.href = `/api/session/${sessionData.sessionId}/download`;
+        window.location.href = window.sessionHelper.appUrl(`/api/session/${sessionData.sessionId}/download`);
     });
 
     processAnotherBtn.addEventListener('click', resetState);

@@ -237,7 +237,7 @@ button:hover {
         <h2>SCM Redwood Migration Suite</h2>
     </div>
     <div class="top-banner">
-        <img src="/static/images/top-banner.png" alt="SCM Redwood Automation Tool">
+        <img src="__APP_BASE_PATH__/static/images/top-banner.png" alt="SCM Redwood Automation Tool">
     </div>
 </div>
 
@@ -275,13 +275,14 @@ button:hover {
         </div>
         <div class="excel-download">
             <p>Download/View the excel to explore the latest Redwood Features for SCM</p>
-            <a class="download-btn" href="/static/Redwood_SCM_Features_V1.11.xlsx" target="_blank" rel="noreferrer">Download Excel</a>
+            <a class="download-btn" href="__APP_BASE_PATH__/static/Redwood_SCM_Features_V1.11.xlsx" target="_blank" rel="noreferrer">Download Excel</a>
         </div>
     </div>
 
 </div>
 
-<script src="/static/session.js"></script>
+<script>window.REDWOOD_BASE_PATH = "__APP_BASE_PATH__";</script>
+<script src="__APP_BASE_PATH__/static/session.js"></script>
 <script>
     async function saveSession() {
         const user = document.getElementById("userName").value;
@@ -307,7 +308,7 @@ button:hover {
         }
 
         alert(`Session created`);
-        window.location.href = "/dashboard";
+        window.location.href = window.sessionHelper.appUrl("/dashboard");
     }
 </script>
 

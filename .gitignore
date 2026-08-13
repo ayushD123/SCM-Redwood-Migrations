@@ -11,6 +11,9 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.cache/
+.npm/
+package-lock.json.artifacthub-backup
 
 # Application runtime data and generated reports
 logs/

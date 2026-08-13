@@ -1,6 +1,16 @@
 window.sessionHelper = (function () {
+  const APP_BASE_PATH = String(window.REDWOOD_BASE_PATH || '').replace(/\/$/, '');
   const SESSION_CHECK_URL = '/api/session/status';
   const MIN_FETCH_OPTIONS = { credentials: 'same-origin', headers: {} };
+
+  function appUrl(url) {
+    if (!url || /^(?:https?:|data:|blob:)/i.test(url)) return url;
+    const normalized = url.startsWith('/') ? url : `/${url}`;
+    if (APP_BASE_PATH && (normalized === APP_BASE_PATH || normalized.startsWith(`${APP_BASE_PATH}/`))) {
+      return normalized;
+    }
+    return `${APP_BASE_PATH}${normalized}` || '/';
+  }
 
   async function checkSession(redirectUrl) {
     try {
@@ -12,7 +22,7 @@ window.sessionHelper = (function () {
       }
       return payload;
     } catch (error) {
-      window.location.href = redirectUrl || '/';
+      window.location.href = appUrl(redirectUrl || '/');
       return null;
     }
   }
@@ -27,7 +37,19 @@ window.sessionHelper = (function () {
       },
     };
 
-    return fetch(url, merged);
+    return fetch(appUrl(url), merged);
+  }
+
+  async function errorMessage(response) {
+    try {
+      const payload = await response.clone().json();
+      if (payload?.detail) return payload.detail;
+      if (payload?.message) return payload.message;
+    } catch (_) {
+      // Fall through to plain text.
+    }
+    const text = await response.text();
+    return text || `Request failed with HTTP ${response.status}`;
   }
 
   async function saveSession(formData) {
@@ -40,7 +62,9 @@ window.sessionHelper = (function () {
   }
 
   return {
+    appUrl,
     checkSession,
+    errorMessage,
     fetchWithSession,
     saveSession,
     requireSession: function (redirectUrl) {

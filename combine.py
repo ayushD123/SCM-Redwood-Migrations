@@ -1451,6 +1451,8 @@ def _env_float(name: str, default: float) -> float:
 
 
 SLOW_INSTANCE_MODE = os.getenv("SLOW_INSTANCE_MODE", "").strip().casefold() in {"1", "true", "yes", "y"}
+BROWSER_HEADLESS = os.getenv("PLAYWRIGHT_HEADLESS", "false").strip().casefold() in {"1", "true", "yes", "y"}
+BROWSER_SLOW_MO_MS = _env_int("PLAYWRIGHT_SLOW_MO_MS", 0 if BROWSER_HEADLESS else 200)
 NAV_TIMEOUT_MS = _env_int("NAV_TIMEOUT_MS", 30_000 if SLOW_INSTANCE_MODE else 15_000)
 SHORT_WAIT_MS = _env_int("SHORT_WAIT_MS", 10_000 if SLOW_INSTANCE_MODE else 5_000)
 UI_STABILIZE_SEC = _env_float("UI_STABILIZE_SEC", 2.0 if SLOW_INSTANCE_MODE else 1.0)
@@ -4275,7 +4277,11 @@ def main():
         browser = None
         page = None
         if should_use_browser:
-            browser = pw.chromium.launch(headless=False, slow_mo=200)
+            browser = pw.chromium.launch(
+                headless=BROWSER_HEADLESS,
+                slow_mo=BROWSER_SLOW_MO_MS,
+                args=["--disable-dev-shm-usage"],
+            )
             context = browser.new_context(ignore_https_errors=True)
             page = context.new_page()
             page.set_default_timeout(60_000)
