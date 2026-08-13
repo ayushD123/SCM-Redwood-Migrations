@@ -173,7 +173,7 @@ except ImportError as e:
     logger.warning(f"Phase 3 modules not available: {e}")
     PHASE3_AVAILABLE = False
 
-app = FastAPI(title="Oracle Migration Tool API", root_path=APP_BASE_PATH)
+app = FastAPI(title="Oracle Migration Tool API")
 
 # Serve static HTML pages
 app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
