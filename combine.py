@@ -1457,10 +1457,10 @@ UI_STABILIZE_SEC = _env_float("UI_STABILIZE_SEC", 2.0 if SLOW_INSTANCE_MODE else
 NAV_RETRIES = max(1, _env_int("NAV_RETRIES", 4 if SLOW_INSTANCE_MODE else 2))
 BASE_URL = os.getenv(
     "FUSION_BASE_URL",
-    "https://eghw-dev1.fa.em2.oraclecloud.com/fscmUI/faces/FuseTaskListManagerTop?_afrLoop=60355488926401771&_adf.ctrl-state=xxa77g8uf_498",
+    "",
 )
-USERNAME = os.getenv("FUSION_USERNAME", "veera.h@oracle.com")
-PASSWORD = os.getenv("FUSION_PASSWORD", "Welcome_01")
+USERNAME = os.getenv("FUSION_USERNAME", "")
+PASSWORD = os.getenv("FUSION_PASSWORD", "")
 
 
 def wait_for_oracle_busy_clear(page, timeout: int = 25_000) -> None:
