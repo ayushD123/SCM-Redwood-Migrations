@@ -15,6 +15,8 @@ Environment=APP_BASE_PATH=/redwood
 Environment=PLAYWRIGHT_HEADLESS=true
 Environment=PLAYWRIGHT_SLOW_MO_MS=0
 Environment=PLAYWRIGHT_BROWSERS_PATH=/var/lib/redwood-suite/playwright
+Environment=SLOW_INSTANCE_MODE=true
+Environment=LOGIN_NAV_TIMEOUT_MS=120000
 Environment=ARTIFACT_RETENTION_MINUTES=120
 ExecStart=/opt/redwood-suite/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8100 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
 Restart=always

@@ -9,7 +9,7 @@ from datetime import datetime
 from pathlib import Path
 import openpyxl
 import pandas as pd
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError, sync_playwright
 import argparse
 from copy import copy
 from dataclasses import dataclass, field
@@ -17,6 +17,7 @@ import re
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from urllib.parse import urlsplit, urlunsplit
 import pandas as pd
 from openpyxl import load_workbook
 
@@ -1453,6 +1454,7 @@ def _env_float(name: str, default: float) -> float:
 SLOW_INSTANCE_MODE = os.getenv("SLOW_INSTANCE_MODE", "").strip().casefold() in {"1", "true", "yes", "y"}
 BROWSER_HEADLESS = os.getenv("PLAYWRIGHT_HEADLESS", "false").strip().casefold() in {"1", "true", "yes", "y"}
 BROWSER_SLOW_MO_MS = _env_int("PLAYWRIGHT_SLOW_MO_MS", 0 if BROWSER_HEADLESS else 200)
+LOGIN_NAV_TIMEOUT_MS = _env_int("LOGIN_NAV_TIMEOUT_MS", 120_000 if SLOW_INSTANCE_MODE else 60_000)
 NAV_TIMEOUT_MS = _env_int("NAV_TIMEOUT_MS", 30_000 if SLOW_INSTANCE_MODE else 15_000)
 SHORT_WAIT_MS = _env_int("SHORT_WAIT_MS", 10_000 if SLOW_INSTANCE_MODE else 5_000)
 UI_STABILIZE_SEC = _env_float("UI_STABILIZE_SEC", 2.0 if SLOW_INSTANCE_MODE else 1.0)
@@ -1494,8 +1496,44 @@ def login(
     """
     active_log = logger or log
     active_log.info("Login")
-    page.goto(base_url, timeout=60_000)
-    page.wait_for_load_state("domcontentloaded")
+    requested_url = str(base_url or "").strip()
+    parsed_url = urlsplit(requested_url)
+    if parsed_url.scheme.casefold() == "http" and (parsed_url.hostname or "").casefold().endswith(
+        ".oraclecloud.com"
+    ):
+        requested_url = urlunsplit(parsed_url._replace(scheme="https"))
+        active_log.info("  Upgraded Oracle Cloud login URL to HTTPS")
+    try:
+        response = page.goto(
+            requested_url,
+            wait_until="domcontentloaded",
+            timeout=LOGIN_NAV_TIMEOUT_MS,
+        )
+        status = response.status if response else "no-response"
+        active_log.info("  Login page reached: HTTP %s; URL=%s", status, page.url)
+    except PlaywrightTimeoutError as exc:
+        # Oracle/IDCS pages can keep loading secondary resources even after the
+        # usable login DOM is present. Continue only when a supported login or
+        # already-authenticated marker is actually visible.
+        active_log.warning(
+            "  Login navigation timed out after %d ms; checking rendered page; URL=%s",
+            LOGIN_NAV_TIMEOUT_MS,
+            page.url,
+        )
+        ready_selector = (
+            'input[id="idcs-signin-basic-signin-form-username|input"], '
+            'input#userid, input[name="username"], input[type="email"], '
+            'svg[aria-label="Navigator"], [aria-label="Navigator"]'
+        )
+        try:
+            page.wait_for_selector(ready_selector, state="visible", timeout=15_000)
+            active_log.info("  Login page DOM is usable despite navigation timeout")
+        except Exception as readiness_exc:
+            raise RuntimeError(
+                "Fusion login page did not become usable from the VM. "
+                f"Requested URL={requested_url}; current URL={page.url}. "
+                "Check that the URL uses HTTPS and test VM connectivity to the Fusion host."
+            ) from exc
     time.sleep(2.0)
 
     idcs_password_selectors = [
@@ -1566,6 +1604,12 @@ def login(
                 attempted_login = True
         except Exception:
             pass
+
+    if not attempted_login:
+        raise RuntimeError(
+            "Supported Fusion login fields were not found. "
+            f"Current URL={page.url}; title={page.title()!r}"
+        )
 
     page.wait_for_selector('svg[aria-label="Navigator"], [aria-label="Navigator"]', timeout=timeout)
     wait_busy_func(page)
